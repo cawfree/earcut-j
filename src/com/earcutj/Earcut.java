@@ -11,17 +11,24 @@ public final class Earcut {
 	public static final List<int[]> earcut(final int[][][] points) {
 		Node outerNode = filterPoints(linkedList(points[0], true), null);
 		List<int[]> triangles = new ArrayList<int[]>();
+		
 		if(outerNode == null) {
 			return triangles;
 		}
+		
 		Node node = null;
-		int minX = 0, minY = 0, maxX = 0, maxY = 0, x = 0, y = 0, size = 0, i = 0;
-        int threshold = 0;
+		Integer minX = null; /** TODO: Autboxing is used to emulate Javascript 'undefined' parameters implementation. Avoid? **/
+		int minY = 0, maxX = 0, maxY = 0, x = 0, y = 0, size = 0, i = 0;
+        int threshold = 80;
         
         for(i = 0; threshold >= 0 && i < points.length; i++) threshold -= points[i].length;
         
+        System.out.println(threshold);
+        
+        
         // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
         if (threshold < 0) {
+        	System.out.println("got here");
             node = outerNode.next;
             minX = maxX = node.p[0];
             minY = maxY = node.p[1];
@@ -37,9 +44,11 @@ public final class Earcut {
 
             // minX, minY and size are later used to transform coords into integers for z-order calculation
             size = Math.max(maxX - minX, maxY - minY);
-        }
+       }
         
         if (points.length > 1) outerNode = eliminateHoles(points, outerNode);
+        
+        /* earcut linked... */
         earcutLinked(outerNode, triangles, minX, minY, size, null);
 		
 		return triangles;
@@ -175,13 +184,13 @@ public final class Earcut {
 	}
 	
 	// main ear slicing loop which triangulates a polygon (given as a linked list)
-	private static final void earcutLinked(Node ear, List<int[]>triangles, int minX, int minY, int size, Integer pass) { /** TODO: Avoid an autoboxing based solution. **/
+	private static final void earcutLinked(Node ear, List<int[]>triangles, Integer minX, int minY, int size, Integer pass) { /** TODO: Avoid an autoboxing based solution. **/
 	    if (ear == null) {
 	    	return;
 	    }
 
 	    // interlink polygon nodes in z-order
-	    if (pass == null) {
+	    if (pass == null && minX != null) {
 	    	indexCurve(ear, minX, minY, size);
 	    }
 
@@ -516,7 +525,7 @@ public final class Earcut {
 	// interlink polygon nodes in z-order
 	private static final void indexCurve(Node start, int minX, int minY, int size) {
 	    Node node = start;
-
+	    
 	    do {
 	    	
 	    	if(node.z == null) {
