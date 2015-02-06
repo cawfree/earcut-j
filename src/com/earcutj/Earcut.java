@@ -23,12 +23,9 @@ public final class Earcut {
         
         for(i = 0; threshold >= 0 && i < points.length; i++) threshold -= points[i].length;
         
-        System.out.println(threshold);
-        
         
         // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
         if (threshold < 0) {
-        	System.out.println("got here");
             node = outerNode.next;
             minX = maxX = node.p[0];
             minY = maxY = node.p[1];
