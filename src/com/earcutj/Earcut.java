@@ -5,63 +5,79 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import com.earcutj.exception.EarcutException;
+
 public final class Earcut {
 	
-	/**  **/
-	public static final List<int[]> earcut(final int[][][] points) {
-		Node outerNode = filterPoints(linkedList(points[0], true), null);
-		List<int[]> triangles = new ArrayList<int[]>();
-		
-		if(outerNode == null) {
-			return triangles;
+	private static final Comparator<Node> COMPARATOR_SORT_BY_X         = new Comparator<Node>() { @Override public int compare(final Node pNodeA, final Node pNodeB) { return pNodeA.mVertex[0] < pNodeB.mVertex[0] ? -1 : pNodeA.mVertex[0] == pNodeB.mVertex[0] ? 0 : 1; } };
+	private static final int              DEFAULT_THRESHOLD_SIMPLICITY = 80;
+	
+	/** Produces an array of vertices representing the triangulated result set of the Points array. **/
+	public static final void earcut(final int[][][] pPoints, final boolean pIsClockwise, final IEarcutListener pEarcutListener) {
+		/* Attempt to establish a doubly-linked list of the provided Points set, and then filter instances of intersections. */
+		Node lOuterNode = Earcut.onFilterPoints(Earcut.onCreateDoublyLinkedList(pPoints[0], pIsClockwise), null);
+		/* If an outer node hasn't been detected, the input array is malformed. */
+		if(lOuterNode == null) {
+			throw new EarcutException("Could not process shape!");
 		}
+		/* Declare method dependencies. */
+		Node    lNode        = null;
+		Integer lMinimumX    = null; /** TODO: Autboxing is used to emulate Javascript 'undefined' parameters implementation. Avoid? **/
 		
-		Node node = null;
-		Integer minX = null; /** TODO: Autboxing is used to emulate Javascript 'undefined' parameters implementation. Avoid? **/
-		int minY = 0, maxX = 0, maxY = 0, x = 0, y = 0, size = 0, i = 0;
-        int threshold = 80;
+		int lMinimumY        = 0;
+		int lMaximumX        = 0;
+		int lMaximumY        = 0;
+		int lCurrentX        = 0; 
+		int lCurrentY        = 0;
+		int lBoundingBoxSize = 0; 
+        int lThreshold       = Earcut.DEFAULT_THRESHOLD_SIMPLICITY;
         
-        for(i = 0; threshold >= 0 && i < points.length; i++) threshold -= points[i].length;
+        /* Determine whether the specified array of points crosses the simplicity threshold. */
+        for(int i = 0; lThreshold >= 0 && i < pPoints.length; i++) {
+        	lThreshold -= pPoints[i].length;
+        }
         
-        
-        // if the shape is not too simple, we'll use z-order curve hash later; calculate polygon bbox
-        if (threshold < 0) {
-            node = outerNode.next;
-            minX = maxX = node.p[0];
-            minY = maxY = node.p[1];
+        /** TODO: Abstract to boolean useCurveHashing. **/
+        /* If the shape crosses THRESHOLD_SIMPLICITY, we will use z-order curve hashing, which requires calculation the bounding box for the polygon. */
+        if (lThreshold < 0) {
+            lNode = lOuterNode.mNextNode;
+            lMinimumX = lMaximumX = lNode.mVertex[0];
+            lMinimumY = lMaximumY = lNode.mVertex[1];
+            /* Iterate through the doubly-linked list. */
             do {
-                x = node.p[0];
-                y = node.p[1];
-                if (x < minX) minX = x;
-                if (y < minY) minY = y;
-                if (x > maxX) maxX = x;
-                if (y > maxY) maxY = y;
-                node = node.next;
-            } while (node != outerNode);
-
-            // minX, minY and size are later used to transform coords into integers for z-order calculation
-            size = Math.max(maxX - minX, maxY - minY);
-       }
+                lCurrentX = lNode.mVertex[0];
+                lCurrentY = lNode.mVertex[1];
+                if (lCurrentX < lMinimumX) {
+                	lMinimumX = lCurrentX;
+                }
+                if (lCurrentY < lMinimumY) {
+                	lMinimumY = lCurrentY;
+                }
+                if (lCurrentX > lMaximumX) {
+                	lMaximumX = lCurrentX;
+                }
+                if (lCurrentY > lMaximumY) {
+                	lMaximumY = lCurrentY;
+                }
+                /* Iterate through to the mNextNode node in the doubly-linked list. */
+                lNode = lNode.mNextNode;
+                /* Ensure that the doubly-linked list has not yet wrapped around. */
+            } while (lNode != lOuterNode);
+            /* Calculate the BoundingBoxSize. (MinX, MinY and Size are used to tansform co-ordinates into integers for the Z-Order calculation. */
+            lBoundingBoxSize = Math.max(lMaximumX - lMinimumX, lMaximumY - lMinimumY);
+        }
         
-        if (points.length > 1) outerNode = eliminateHoles(points, outerNode);
+        /* Determine if the specified list of points contains holes. */
+        if (pPoints.length > 1) {
+        	lOuterNode = Earcut.onEliminateHoles(pPoints, lOuterNode);
+        }
         
-        /* earcut linked... */
-        earcutLinked(outerNode, triangles, minX, minY, size, null);
-		
-		return triangles;
+        /* Calculate an Earcut operation on the LinkedList. */
+        Earcut.onEarcutLinkedList(lOuterNode, pEarcutListener, lMinimumX, lMinimumY, lBoundingBoxSize, null); /** TODO: Should be a second type of method call. **/
 	}
 	
-	private static final Comparator<Node> COMPARATOR_SORT_BY_X = new Comparator<Node>() {
-
-	    @Override
-	    public int compare(Node a, Node b) {
-	        return a.p[0] < b.p[0] ? -1 : a.p[0] == b.p[0] ? 0 : 1; /** TODO: Is this right? **/
-	    }
-	    
-	};
-	
 	// link every hole into the outer loop, producing a single-ring polygon without holes
-	private static final Node eliminateHoles(int[][][] points, Node outerNode) {
+	private static final Node onEliminateHoles(int[][][] points, Node outerNode) {
 	    int len = points.length;
 	    int i;
 	    
@@ -69,34 +85,34 @@ public final class Earcut {
 	    
 	    List<Node> queue = new ArrayList<Node>();
 	    for (i = 1; i < len; i++) {
-	        Node list = filterPoints(linkedList(points[i], false), null);
-	        if (list != null) queue.add(getLeftmost(list));
+	        Node list = Earcut.onFilterPoints(onCreateDoublyLinkedList(points[i], false), null);
+	        if (list != null) queue.add(onFetchLeftmost(list));
 	    }
 	    
 	    Collections.sort(queue, Earcut.COMPARATOR_SORT_BY_X);
 
 	    // process holes from left to right
 	    for (i = 0; i < queue.size(); i++) {
-	        eliminateHole(queue.get(i), outerNode);
-	        outerNode = filterPoints(outerNode, outerNode.next);
+	    	Earcut.onEliminateHole(queue.get(i), outerNode);
+	        outerNode = Earcut.onFilterPoints(outerNode, outerNode.mNextNode);
 	    }
 
 	    return outerNode;
 	}
 	
 	// find a bridge between vertices that connects hole with an outer ring and and link it
-	private static final void eliminateHole(Node holeNode, Node outerNode) {
-	    outerNode = findHoleBridge(holeNode, outerNode);
+	private static final void onEliminateHole(Node holeNode, Node outerNode) {
+	    outerNode = Earcut.onEberlyFetchHoldBridge(holeNode, outerNode);
 	    if (outerNode != null) {
-	        Node b = splitPolygon(outerNode, holeNode);
-	        filterPoints(b, b.next);
+	        Node b = Earcut.onSplitPolygon(outerNode, holeNode);
+	        Earcut.onFilterPoints(b, b.mNextNode);
 	    }
 	}
 	
 	// David Eberly's algorithm for finding a bridge between hole and outer polygon
-	private static final Node findHoleBridge(Node holeNode, Node outerNode) {
+	private static final Node onEberlyFetchHoldBridge(Node holeNode, Node outerNode) {
 	    Node node = outerNode;
-	    int[]    p = holeNode.p;
+	    int[]    p = holeNode.mVertex;
 	    int   px = p[0],
 	        py = p[1],
 	        qMax = Integer.MIN_VALUE;
@@ -106,17 +122,17 @@ public final class Earcut {
 	    // find a segment intersected by a ray from the hole's leftmost point to the left;
 	    // segment's endpoint with lesser x will be potential connection point
 	    do {
-	        a = node.p;
-	        b = node.next.p;
+	        a = node.mVertex;
+	        b = node.mNextNode.mVertex;
 
 	        if (py <= a[1] && py >= b[1]) {
 	            int qx = a[0] + (py - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
 	            if (qx <= px && qx > qMax) {
 	                qMax = qx;
-	                mNode = a[0] < b[0] ? node : node.next;
+	                mNode = a[0] < b[0] ? node : node.mNextNode;
 	            }
 	        }
-	        node = node.next;
+	        node = node.mNextNode;
 	    } while (node != outerNode);
 
 	    if (mNode == null) return null;
@@ -125,8 +141,8 @@ public final class Earcut {
 	    // if there are no points found, we have a valid connection;
 	    // otherwise choose the point of the minimum angle with the ray as connection point
 
-	    int bx = mNode.p[0],
-	        by = mNode.p[1],
+	    int bx = mNode.mVertex[0],
+	        by = mNode.mVertex[1],
 	        pbd = px * by - py * bx,
 	        pcd = px * py - py * qMax,
 	        cpy = py - py,
@@ -139,12 +155,12 @@ public final class Earcut {
 	        int tanMin = Integer.MAX_VALUE,
 	        mx, my, amx, s, t, tan;
 
-	    node = mNode.next;
+	    node = mNode.mNextNode;
 
 	    while (node != stop) {
 
-	        mx = node.p[0];
-	        my = node.p[1];
+	        mx = node.mVertex[0];
+	        my = node.mVertex[1];
 	        amx = px - mx;
 
 	        if (amx >= 0 && mx >= bx) {
@@ -154,7 +170,7 @@ public final class Earcut {
 
 	                if (t >= 0 && A * sign - s - t >= 0) {
 	                    tan = Math.abs(py - my) / amx; // tangential
-	                    if (tan < tanMin && locallyInside(node, holeNode)) {
+	                    if (tan < tanMin && isLocallyInside(node, holeNode)) {
 	                        mNode = node;
 	                        tanMin = tan;
 	                    }
@@ -162,81 +178,81 @@ public final class Earcut {
 	            }
 	        }
 
-	        node = node.next;
+	        node = node.mNextNode;
 	    }
 
 	    return mNode;
 	}
 	
 	// find the leftmost node of a polygon ring
-	private static final Node getLeftmost(Node start) {
+	private static final Node onFetchLeftmost(final Node start) {
 	    Node node = start,
 	        leftmost = start;
 	    do {
-	        if (node.p[0] < leftmost.p[0]) leftmost = node;
-	        node = node.next;
+	        if (node.mVertex[0] < leftmost.mVertex[0]) leftmost = node;
+	        node = node.mNextNode;
 	    } while (node != start);
 
 	    return leftmost;
 	}
 	
 	// main ear slicing loop which triangulates a polygon (given as a linked list)
-	private static final void earcutLinked(Node ear, List<int[]>triangles, Integer minX, int minY, int size, Integer pass) { /** TODO: Avoid an autoboxing based solution. **/
-	    if (ear == null) {
+	private static final void onEarcutLinkedList(Node lCurrentEar, final IEarcutListener pEarcutListener, final Integer minX, final int minY, final int size, final Integer pIterationNumber) { /** TODO: Avoid an autoboxing based solution. **/
+	    if (lCurrentEar == null) {
 	    	return;
 	    }
 
 	    // interlink polygon nodes in z-order
-	    if (pass == null && minX != null) {
-	    	indexCurve(ear, minX, minY, size);
+	    if (pIterationNumber == null && minX != null) {
+	    	Earcut.onIndexCurve(lCurrentEar, minX, minY, size);
 	    }
 
-	    Node stop = ear;
+	    Node lStop = lCurrentEar;
 	    Node prev = null;
 	    Node next = null;
 
 	    // iterate through ears, slicing them one by one
-	    while (ear.prev != ear.next) {
-	        prev = ear.prev;
-	        next = ear.next;
+	    while (lCurrentEar.mPreviousNode != lCurrentEar.mNextNode) {
+	        prev = lCurrentEar.mPreviousNode;
+	        next = lCurrentEar.mNextNode;
 
-	        if (isEar(ear, minX, minY, size)) {
-	            // cut off the triangle
-	            //triangles.push(prev.p, ear.p, next.p);
-	            /** TODO: Is clone required? Probably not. **/
-	            triangles.add(prev.p.clone());
-	            triangles.add(ear.p.clone());
-	            triangles.add(next.p.clone());
+	        /* Determine whether the current triangle must be cut off. */
+	        if(Earcut.isEar(lCurrentEar, minX, minY, size)) {
+	            
+	        	/* Return the triangulated data back to the Callback. */
+	        	pEarcutListener.onTriangleVertex(prev.mVertex[0], prev.mVertex[1], lCurrentEar.mVertex[0], lCurrentEar.mVertex[1], next.mVertex[0], next.mVertex[1]);
 	            
 
 	            // remove ear node
-	            next.prev = prev;
-	            prev.next = next;
+	            next.mPreviousNode = prev;
+	            prev.mNextNode = next;
 
-	            if (ear.prevZ != null) ear.prevZ.nextZ = ear.nextZ;
-	            if (ear.nextZ != null) ear.nextZ.prevZ = ear.prevZ;
+	            if (lCurrentEar.mPreviousZNode != null) lCurrentEar.mPreviousZNode.mNextZNode = lCurrentEar.mNextZNode;
+	            if (lCurrentEar.mNextZNode != null) lCurrentEar.mNextZNode.mPreviousZNode = lCurrentEar.mPreviousZNode;
 
-	            // skipping the next vertice leads to less sliver triangles
-	            ear = next.next;
-	            stop = next.next;
+	            // skipping the mNextNode vertice leads to less sliver triangles
+	            lCurrentEar = next.mNextNode;
+	            lStop = next.mNextNode;
 
 	            continue;
 	        }
 
-	        ear = next;
+	        lCurrentEar = next;
 
 	        // if we looped through the whole remaining polygon and can't find any more ears
-	        if (ear == stop) {
+	        if (lCurrentEar == lStop) {
 	            // try filtering points and slicing again
-	            if (pass == null) earcutLinked(filterPoints(ear, null), triangles, minX, minY, size, 1);
+	            if (pIterationNumber == null) {
+	            	Earcut.onEarcutLinkedList(onFilterPoints(lCurrentEar, null), pEarcutListener, minX, minY, size, 1);
+	            }
 
 	            // if this didn't work, try curing all small self-intersections locally
-	            else if (pass == 1) {
-	                ear = cureLocalIntersections(ear, triangles);
-	                earcutLinked(ear, triangles, minX, minY, size, 2);
+	            else if (pIterationNumber == 1) {
+	                lCurrentEar = Earcut.onCureLocalIntersections(lCurrentEar, pEarcutListener);
+	                Earcut.onEarcutLinkedList(lCurrentEar, pEarcutListener, minX, minY, size, 2);
 
 	            // as a last resort, try splitting the remaining polygon into two
-	            } else if (pass == 2) splitEarcut(ear, triangles, minX, minY, size);
+	            } else if (pIterationNumber == 2) Earcut.onSplitEarcut(lCurrentEar, pEarcutListener, minX, minY, size);
 
 	            break;
 	        }
@@ -246,9 +262,9 @@ public final class Earcut {
 	// check whether a polygon node forms a valid ear with adjacent nodes
 	private static final boolean isEar(Node ear, Integer minX, int minY, int size) {
 
-	    int[] a = ear.prev.p,
-	        b = ear.p,
-	        c = ear.next.p;
+	    int[] a = ear.mPreviousNode.mVertex,
+	        b = ear.mVertex,
+	        c = ear.mNextNode.mVertex;
 
 	        int ax = a[0], bx = b[0], cx = c[0],
 	        ay = a[1], by = b[1], cy = c[1],
@@ -281,15 +297,15 @@ public final class Earcut {
 	            maxTY = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy),
 
 	            // z-order range for the current triangle bbox;
-	            minZ = zOrder(minTX, minTY, minX, minY, size),
-	            maxZ = zOrder(maxTX, maxTY, minX, minY, size);
+	            minZ = Earcut.onCalculateZOrder(minTX, minTY, minX, minY, size),
+	            maxZ = Earcut.onCalculateZOrder(maxTX, maxTY, minX, minY, size);
 
 	        // first look for points inside the triangle in increasing z-order
-	        node = ear.nextZ;
+	        node = ear.mNextZNode;
 
-	        while (node != null && node.z <= maxZ) {
-	            p = node.p;
-	            node = node.nextZ;
+	        while (node != null && node.mZOrder <= maxZ) {
+	            p = node.mVertex;
+	            node = node.mNextZNode;
 	            if (p == a || p == c) continue;
 
 	            px = p[0];
@@ -315,11 +331,11 @@ public final class Earcut {
 	        }
 
 	        // then look for points in decreasing z-order
-	        node = ear.prevZ;
+	        node = ear.mPreviousZNode;
 
-	        while (node != null && node.z >= minZ) {
-	            p = node.p;
-	            node = node.prevZ;
+	        while (node != null && node.mZOrder >= minZ) {
+	            p = node.mVertex;
+	            node = node.mPreviousZNode;
 	            if (p == a || p == c) continue;
 
 	            px = p[0];
@@ -344,11 +360,11 @@ public final class Earcut {
 
 	    // if we don't use z-order curve hash, simply iterate through all other points
 	    } else {
-	        node = ear.next.next;
+	        node = ear.mNextNode.mNextNode;
 
-	        while (node != ear.prev) {
-	            p = node.p;
-	            node = node.next;
+	        while (node != ear.mPreviousNode) {
+	            p = node.mVertex;
+	            node = node.mNextNode;
 
 	            px = p[0];
 	            py = p[1];
@@ -374,175 +390,168 @@ public final class Earcut {
 	}
 	
 	// go through all polygon nodes and cure small local self-intersections
-	private static final Node cureLocalIntersections(Node start, List<int[]>triangles) {
+	private static final Node onCureLocalIntersections(Node start, final IEarcutListener pEarcutListener) {
 	    Node node = start;
 	    do {
-	        Node a = node.prev,
-	            b = node.next.next;
+	        Node a = node.mPreviousNode,
+	            b = node.mNextNode.mNextNode;
 
 	        // a self-intersection where edge (v[i-1],v[i]) intersects (v[i+1],v[i+2])
-	        if (intersects(a.p, node.p, node.next.p, b.p) && locallyInside(a, b) && locallyInside(b, a)) {
+	        if (Earcut.isIntersecting(a.mVertex, node.mVertex, node.mNextNode.mVertex, b.mVertex) && Earcut.isLocallyInside(a, b) && Earcut.isLocallyInside(b, a)) {
+	            /* Return the triangulated vertices to the callback. */
+	        	pEarcutListener.onTriangleVertex(a.mVertex[0], a.mVertex[1], node.mVertex[0], node.mVertex[1], b.mVertex[0], b.mVertex[1]);
 
-	           // triangles.push(a.p, node.p, b.p);
-	            triangles.add(a.p.clone()); /** TODO: Is clone required? **/
-	            triangles.add(node.p.clone());
-	            triangles.add(b.p.clone());
-
+	        	/** TODO: Abstract to a method. **/
 	            // remove two nodes involved
-	            a.next = b;
-	            b.prev = a;
+	            a.mNextNode = b;
+	            b.mPreviousNode = a;
 
-	            Node az = node.prevZ;
+	            Node az = node.mPreviousZNode;
 	            
 	            Node bz;
 	            
-	            //bz = node.nextZ && node.nextZ.nextZ;
-	            if(node.nextZ == null) {
-	            	bz = node.nextZ;
+	            //bz = node.mNextZNode && node.mNextZNode.mNextZNode;
+	            if(node.mNextZNode == null) {
+	            	bz = node.mNextZNode;
 	            }
 	            else {
-	            	bz = node.nextZ.nextZ;
+	            	bz = node.mNextZNode.mNextZNode;
 	            }
 	            
 
-	            if (az != null) az.nextZ = bz;
-	            if (bz != null) bz.prevZ = az;
+	            if (az != null) az.mNextZNode = bz;
+	            if (bz != null) bz.mPreviousZNode = az;
 
 	            node = start = b;
 	        }
-	        node = node.next;
+	        node = node.mNextNode;
 	    } while (node != start);
 
 	    return node;
 	}
 	
 	// try splitting polygon into two and triangulate them independently
-	private static final void splitEarcut(Node start, List<int[]>triangles, int minX, int minY, int size) {
+	private static final void onSplitEarcut(final Node pStart, final IEarcutListener pCallback, final int pMinimumX, final int pMinimumY, final int pSize) {
 	    // look for a valid diagonal that divides the polygon into two
-	    Node a = start;
+	    Node a = pStart;
 	    do {
-	    	Node b = a.next.next;
-	        while (b != a.prev) {
-	            if (isValidDiagonal(a, b)) {
+	    	Node b = a.mNextNode.mNextNode;
+	        while (b != a.mPreviousNode) {
+	            if (Earcut.isValidDiagonal(a, b)) {
 	                // split the polygon in two by the diagonal
-	            	Node c = splitPolygon(a, b);
+	            	Node c = Earcut.onSplitPolygon(a, b);
 
 	                // filter colinear points around the cuts
-	                a = filterPoints(a, a.next);
-	                c = filterPoints(c, c.next);
+	                a = Earcut.onFilterPoints(a, a.mNextNode);
+	                c = Earcut.onFilterPoints(c, c.mNextNode);
 
 	                // run earcut on each half
-	                earcutLinked(a, triangles, minX, minY, size, null);
-	                earcutLinked(c, triangles, minX, minY, size, null);
-	                return;
+	               Earcut.onEarcutLinkedList(a, pCallback, pMinimumX, pMinimumY, pSize, null);
+	               Earcut.onEarcutLinkedList(c, pCallback, pMinimumX, pMinimumY, pSize, null);
+	               return;
 	            }
-	            b = b.next;
+	            b = b.mNextNode;
 	        }
-	        a = a.next;
-	    } while (a != start);
+	        a = a.mNextNode;
+	    } while (a != pStart);
 	}
 	
 	// link two polygon vertices with a bridge; if the vertices belong to the same ring, it splits polygon into two;
 	// if one belongs to the outer ring and another to a hole, it merges it into a single ring
-	private static final Node splitPolygon(Node a, Node b) {
-	    Node a2 = new Node(a.p),
-	        b2 = new Node(b.p),
-	        an = a.next,
-	        bp = b.prev;
+	private static final Node onSplitPolygon(final Node a, final Node b) {
+	    Node a2 = new Node(a.mVertex),
+	        b2 = new Node(b.mVertex),
+	        an = a.mNextNode,
+	        bp = b.mPreviousNode;
 
-	    a.next = b;
-	    b.prev = a;
+	    a.mNextNode = b;
+	    b.mPreviousNode = a;
 
-	    a2.next = an;
-	    an.prev = a2;
+	    a2.mNextNode = an;
+	    an.mPreviousNode = a2;
 
-	    b2.next = a2;
-	    a2.prev = b2;
+	    b2.mNextNode = a2;
+	    a2.mPreviousNode = b2;
 
-	    bp.next = b2;
-	    b2.prev = bp;
+	    bp.mNextNode = b2;
+	    b2.mPreviousNode = bp;
 
 	    return b2;
 	}
 	
-	// check if a diagonal between two polygon nodes is valid (lies in polygon interior)
-	private static final boolean isValidDiagonal(Node a, Node b) {
-	    return !intersectsPolygon(a, a.p, b.p) &&
-	           locallyInside(a, b) && locallyInside(b, a) &&
-	           middleInside(a, a.p, b.p);
+	/** Determines whether a diagonal between two polygon nodes lies within a polygon interior. (This determines the validity of the ray.) **/
+	private static final boolean isValidDiagonal(final Node a, final Node b) {
+	    return !Earcut.isIntersectingPolygon(a, a.mVertex, b.mVertex) && Earcut.isLocallyInside(a, b) && Earcut.isLocallyInside(b, a) && Earcut.onMiddleInsert(a, a.mVertex, b.mVertex);
 	}
 	
-	// check if a polygon diagonal is locally inside the polygon
-	public static final boolean locallyInside(Node a, Node b) {
-	    return orient(a.prev.p, a.p, a.next.p) == -1 ?
-	        orient(a.p, b.p, a.next.p) != -1 && orient(a.p, a.prev.p, b.p) != -1 :
-	        orient(a.p, b.p, a.prev.p) == -1 || orient(a.p, a.next.p, b.p) == -1;
+	/** Determines whether a polygon diagonal rests locally within a polygon. **/
+	private static final boolean isLocallyInside(final Node a, final Node b) {
+	    return Earcut.onCalculateWindingOrder(a.mPreviousNode.mVertex, a.mVertex, a.mNextNode.mVertex) == -1 ? Earcut.onCalculateWindingOrder(a.mVertex, b.mVertex, a.mNextNode.mVertex) != -1 && Earcut.onCalculateWindingOrder(a.mVertex, a.mPreviousNode.mVertex, b.mVertex) != -1 : Earcut.onCalculateWindingOrder(a.mVertex, b.mVertex, a.mPreviousNode.mVertex) == -1 || Earcut.onCalculateWindingOrder(a.mVertex, a.mNextNode.mVertex, b.mVertex) == -1;
 	}
 	
 	// check if the middle point of a polygon diagonal is inside the polygon
-	public static final boolean middleInside(Node start, int[] a, int[] b) {
+	private static final boolean onMiddleInsert(final Node start, final int[] a, final int[] b) {
 	    Node node = start;
 	    boolean    inside = false;
 	    int    px = (a[0] + b[0]) / 2;
 	    int    py = (a[1] + b[1]) / 2;
 	    do {
-	        int[] p1 = node.p,
-	            p2 = node.next.p;
+	        int[] p1 = node.mVertex,
+	            p2 = node.mNextNode.mVertex;
 
-	        if (((p1[1] > py) != (p2[1] > py)) &&
-	            (px < (p2[0] - p1[0]) * (py - p1[1]) / (p2[1] - p1[1]) + p1[0])) inside = !inside;
+	        if (((p1[1] > py) != (p2[1] > py)) && (px < (p2[0] - p1[0]) * (py - p1[1]) / (p2[1] - p1[1]) + p1[0])) inside = !inside;
 
-	        node = node.next;
+	        node = node.mNextNode;
 	    } while (node != start);
 
 	    return inside;
 	}
 	
-	// check if a polygon diagonal intersects any polygon segments
-	public static final boolean intersectsPolygon(final Node start, int[] a, int[] b) {
+	/** Determines if the diagonal of a polygon is intersecting with any polygon elements. **/
+	private static final boolean isIntersectingPolygon(final Node start, int[] a, int[] b) {
 	    Node node = start;
 	    do {
-	        int[] p1 = node.p,
-	            p2 = node.next.p;
+	        int[] p1 = node.mVertex, p2 = node.mNextNode.mVertex;
 
-	        if (p1 != a && p2 != a && p1 != b && p2 != b && intersects(p1, p2, a, b)) return true;
+	        if (p1 != a && p2 != a && p1 != b && p2 != b && Earcut.isIntersecting(p1, p2, a, b)) {
+	        	return true;
+	        }
 
-	        node = node.next;
+	        node = node.mNextNode;
 	    } while (node != start);
 
 	    return false;
 	}
 	
-	// check if two segments intersect
-	public static final boolean intersects(int[] p1, int[] q1, int[] p2, int[] q2) {
-	    return orient(p1, q1, p2) != orient(p1, q1, q2) &&
-	           orient(p2, q2, p1) != orient(p2, q2, q1);
+	/** Determines whether two segments intersect. **/
+	private static final boolean isIntersecting(int[] p1, int[] q1, int[] p2, int[] q2) {
+	    return Earcut.onCalculateWindingOrder(p1, q1, p2) != Earcut.onCalculateWindingOrder(p1, q1, q2) && Earcut.onCalculateWindingOrder(p2, q2, p1) != Earcut.onCalculateWindingOrder(p2, q2, q1);
 	}
 	
-	// interlink polygon nodes in z-order
-	private static final void indexCurve(Node start, int minX, int minY, int size) {
+	/** Interlinks polygon nodes in Z-Order. **/
+	private static final void onIndexCurve(Node start, int minX, int minY, int size) {
 	    Node node = start;
 	    
 	    do {
 	    	
-	    	if(node.z == null) {
-	    		node.z = zOrder(node.p[0], node.p[1], minX, minY, size);
+	    	if(node.mZOrder == null) {
+	    		node.mZOrder = Earcut.onCalculateZOrder(node.mVertex[0], node.mVertex[1], minX, minY, size);
 	    	}
 	    	
-	        node.prevZ = node.prev;
-	        node.nextZ = node.next;
-	        node = node.next;
+	        node.mPreviousZNode = node.mPreviousNode;
+	        node.mNextZNode = node.mNextNode;
+	        node = node.mNextNode;
 	    } while (node != start);
 
-	    node.prevZ.nextZ = null;
-	    node.prevZ = null;
+	    node.mPreviousZNode.mNextZNode = null;
+	    node.mPreviousZNode = null;
 
-	    sortLinked(node);
+	    Earcut.onZSortList(node);
 	}
 	
 	// Simon Tatham's linked list merge sort algorithm
 	// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
-	private static final Node sortLinked(Node list) {
+	private static final Node onZSortList(Node list) {
 	    int i;
 	    Node p;
 	    Node q;
@@ -565,7 +574,7 @@ public final class Earcut {
 	            pSize = 0;
 	            for (i = 0; i < inSize; i++) {
 	                pSize++;
-	                q = q.nextZ;
+	                q = q.mNextZNode;
 	                if (q == null) break;
 	            }
 
@@ -575,33 +584,33 @@ public final class Earcut {
 
 	                if (pSize == 0) {
 	                    e = q;
-	                    q = q.nextZ;
+	                    q = q.mNextZNode;
 	                    qSize--;
 	                } else if (qSize == 0 || q == null) {
 	                    e = p;
-	                    p = p.nextZ;
+	                    p = p.mNextZNode;
 	                    pSize--;
-	                } else if (p.z <= q.z) {
+	                } else if (p.mZOrder <= q.mZOrder) {
 	                    e = p;
-	                    p = p.nextZ;
+	                    p = p.mNextZNode;
 	                    pSize--;
 	                } else {
 	                    e = q;
-	                    q = q.nextZ;
+	                    q = q.mNextZNode;
 	                    qSize--;
 	                }
 
-	                if (tail != null) tail.nextZ = e;
+	                if (tail != null) tail.mNextZNode = e;
 	                else list = e;
 
-	                e.prevZ = tail;
+	                e.mPreviousZNode = tail;
 	                tail = e;
 	            }
 
 	            p = q;
 	        }
 
-	        tail.nextZ = null;
+	        tail.mNextZNode = null;
 
 	        if (numMerges <= 1) return list;
 
@@ -610,7 +619,7 @@ public final class Earcut {
 	}
 	
 	// z-order of a point given coords and size of the data bounding box
-	private static final Integer zOrder(int x, int y, int minX, int minY, int size) {
+	private static final Integer onCalculateZOrder(int x, int y, int minX, int minY, int size) {
 	    // coords are transformed into (0..1000) integer range
 	    x = 1000 * (x - minX) / size;
 	    x = (x | (x << 8)) & 0x00FF00FF;
@@ -628,9 +637,9 @@ public final class Earcut {
 	}
 	
 	/** Creates a circular doubly linked list using polygon points. The order is governed by the specified winding order. **/
-	private static final Node linkedList(final int[][] points, final boolean clockwise) {
+	private static final Node onCreateDoublyLinkedList(final int[][] pPoints, final boolean clockwise) {
 		int sum = 0;
-		int len = points.length;
+		int len = pPoints.length;
 		int i, j;
 		int[] p1;
 		int[] p2;
@@ -638,24 +647,25 @@ public final class Earcut {
 		
 		/* Calculate the original order of the Polygon ring. */
 	    for(i = 0, j = len - 1; i < len; j = i++) {
-	        p1 = points[i];
-	        p2 = points[j];
+	        p1 = pPoints[i];
+	        p2 = pPoints[j];
 	        sum += (p2[0] - p1[0]) * (p1[1] + p2[1]);
-	    }
-	    
-	    /** TODO: Depends on insertNode(). **/
-	    
+	    }	    
 	    // link points into circular doubly-linked list in the specified winding order
 	    if (clockwise == (sum > 0)) {
-	        for (i = 0; i < len; i++) last = insertNode(points[i], last);
+	        for (i = 0; i < len; i++) {
+	        	last = Earcut.onInsertNode(pPoints[i], last);
+	        }
 	    } else {
-	        for (i = len - 1; i >= 0; i--) last = insertNode(points[i], last);
+	        for (i = len - 1; i >= 0; i--) {
+	        	last = onInsertNode(pPoints[i], last);
+	        }
 	    }
 	    return last;
 	}
 	
 	// eliminate colinear or duplicate points
-	public static final Node filterPoints(final Node start, Node end) {
+	private static final Node onFilterPoints(final Node start, Node end) {
 		if(end == null) {
 			end = start;
 		}
@@ -666,22 +676,22 @@ public final class Earcut {
 	    do {
 	        again = false;
 
-	        if (equals(node.p, node.next.p) || orient(node.prev.p, node.p, node.next.p) == 0) {
+	        if (Earcut.isEquals(node.mVertex, node.mNextNode.mVertex) || Earcut.onCalculateWindingOrder(node.mPreviousNode.mVertex, node.mVertex, node.mNextNode.mVertex) == 0) {
 
 	            // remove node
-	            node.prev.next = node.next;
-	            node.next.prev = node.prev;
+	            node.mPreviousNode.mNextNode = node.mNextNode;
+	            node.mNextNode.mPreviousNode = node.mPreviousNode;
 
-	            if (node.prevZ != null) node.prevZ.nextZ = node.nextZ;
-	            if (node.nextZ != null) node.nextZ.prevZ = node.prevZ;
+	            if (node.mPreviousZNode != null) node.mPreviousZNode.mNextZNode = node.mNextZNode;
+	            if (node.mNextZNode != null) node.mNextZNode.mPreviousZNode = node.mPreviousZNode;
 
-	            node = end = node.prev;
+	            node = end = node.mPreviousNode;
 
-	            if (node == node.next) return null;
+	            if (node == node.mNextNode) return null;
 	            again = true;
 
 	        } else {
-	            node = node.next;
+	            node = node.mNextNode;
 	        }
 	    } while (again || node != end);
 
@@ -689,30 +699,29 @@ public final class Earcut {
 	}
 	
 	// create a node and optionally link it with previous one (in a circular doubly linked list)
-	private static final Node insertNode(int[] point, Node last) {
+	private static final Node onInsertNode(int[] point, Node last) {
 	    Node node = new Node(point);
 	    if(last == null) {
-	        node.prev = node;
-	        node.next = node;
+	        node.mPreviousNode = node;
+	        node.mNextNode = node;
 
 	    } else {
-	        node.next = last.next;
-	        node.prev = last;
-	        last.next.prev = node;
-	        last.next = node;
+	        node.mNextNode = last.mNextNode;
+	        node.mPreviousNode = last;
+	        last.mNextNode.mPreviousNode = node;
+	        last.mNextNode = node;
 	    }
 	    return node;
 	}
 	
-	// check if two points are equal
-	private static final boolean equals(int[] p1, int[] p2) {
+	/* Determines if two point vertices are equal. */
+	private static final boolean isEquals(int[] p1, int[] p2) {
 	    return p1[0] == p2[0] && p1[1] == p2[1];
 	}
 	
-	// winding order of triangle formed by 3 given points
-	private static final int orient(int[] p, int[] q, int[] r) {
-	    int o = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
-	    return o > 0 ? 1 : o < 0 ? -1 : 0;
+	private static final int onCalculateWindingOrder(int[] p, int[] q, int[] r) {
+	    final int lCross = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+	    return    lCross > 0 ? 1 : lCross < 0 ? -1 : 0;
 	}
 	
 	/* Prevent instantiation of this class. */

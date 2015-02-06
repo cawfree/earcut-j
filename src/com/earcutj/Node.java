@@ -3,24 +3,26 @@ package com.earcutj;
 final class Node {
 	
 	/* Member Variables. */
-	int[] p;
-	/* Previous and next vertices in the polygon ring. */
-	Node  prev;
-	Node  next;
+	final int[] mVertex;
+	
+	/* Previous and mNextNode vertices in the polygon ring. */
+	Node  mPreviousNode;
+	Node  mNextNode;
 	/* Z-Order curve value. */
-	Integer  z;
-	/* Previous and next nodes in Z-Order. */
-	Node  prevZ;
-	Node  nextZ;
+	Integer  mZOrder;
+	
+	/* Previous and mNextNode nodes in Z-Order. */
+	Node  mPreviousZNode;
+	Node  mNextZNode;
 	
 	Node(final int[] pVertices) {
 		/* Initialize Member Variables. */
-		this.p     = pVertices;
-		this.prev  = null;
-		this.next  = null;
-		this.z     = null;
-		this.prevZ = null;
-		this.nextZ = null;
+		this.mVertex     = pVertices;
+		this.mPreviousNode  = null;
+		this.mNextNode  = null;
+		this.mZOrder     = null;
+		this.mPreviousZNode = null;
+		this.mNextZNode = null;
 	}
 
 }
