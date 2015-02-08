@@ -688,8 +688,11 @@ public final class Earcut {
 	            lNode.getPreviousNode().setNextNode(lNode.getNextNode());
 	            lNode.getNextNode().setPreviousNode(lNode.getPreviousNode());
 	            /* Remove the corresponding Z-Index nodes. */
-	            if(pIsZIndexed) {
+	            
+	            if(lNode.getPreviousZNode() != null) {
 	            	lNode.getPreviousZNode().setNextZNode(lNode.getNextZNode()); 
+	            }
+	            if(lNode.getNextZNode() != null) {
 	            	lNode.getNextZNode().setPreviousZNode(lNode.getPreviousZNode());
 	            }
 
