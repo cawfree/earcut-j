@@ -253,19 +253,100 @@ public final class MainActivity {
 				new int[] {240,733}, 
 		}};
 		
+		/* The course insides of the letter O. Font: Sans.ttf. (This is missing inside and outside Bezier curve data, it is used here to demonstrate hole processing.) */
+		final int[][][] lLetter8 = new int[][][]{new int[][]{new int[] {582,1487}, 
+				new int[] {749,1463}, 
+				new int[] {881,1392}, 
+				new int[] {966,1280}, 
+				new int[] {995,1135}, 
+				new int[] {977,1029}, 
+				new int[] {924,937}, 
+				new int[] {832,854}, 
+				new int[] {696,778}, 
+				new int[] {859,695}, 
+				new int[] {966,605}, 
+				new int[] {1024,501}, 
+				new int[] {1044,377}, 
+				new int[] {1012,214}, 
+				new int[] {917,88}, 
+				new int[] {769,7}, 
+				new int[] {578,-20}, 
+				new int[] {382,5}, 
+				new int[] {239,81}, 
+				new int[] {150,205}, 
+				new int[] {121,375}, 
+				new int[] {141,498}, 
+				new int[] {204,605}, 
+				new int[] {309,696}, 
+				new int[] {461,774}, 
+				new int[] {323,852}, 
+				new int[] {234,934}, 
+				new int[] {184,1027}, 
+				new int[] {168,1137}, 
+				new int[] {181,1235}, 
+				new int[] {221,1321}, 
+				new int[] {284,1391}, 
+				new int[] {369,1444}, 
+				new int[] {470,1476}, 
+				new int[] {582,1487}, }, new int[][]{new int[] {223,360}, 
+				new int[] {223,222}, 
+				new int[] {316,146}, 
+				new int[] {410,70}, 
+				new int[] {578,70}, 
+				new int[] {742,70}, 
+				new int[] {842,150}, 
+				new int[] {942,231}, 
+				new int[] {942,369}, 
+				new int[] {942,493}, 
+				new int[] {863,570}, 
+				new int[] {785,648}, 
+				new int[] {561,733}, 
+				new int[] {377,662}, 
+				new int[] {300,576}, 
+				new int[] {223,490}, 
+				new int[] {223,360}, }, new int[][]{new int[] {580,1397}, 
+				new int[] {439,1397}, 
+				new int[] {353,1327}, 
+				new int[] {268,1258}, 
+				new int[] {268,1137}, 
+				new int[] {268,1067}, 
+				new int[] {299,1013}, 
+				new int[] {331,960}, 
+				new int[] {390,916}, 
+				new int[] {450,873}, 
+				new int[] {590,815}, 
+				new int[] {753,878}, 
+				new int[] {824,954}, 
+				new int[] {895,1030}, 
+				new int[] {895,1137}, 
+				new int[] {895,1257}, 
+				new int[] {810,1327}, 
+				new int[] {726,1397}, 
+				new int[] {580,1397}, }, };
+		
 		
 		final IEarcutListener lCallback = new IEarcutListener() {
 
 			@Override
 			public void onTriangleVertex(int pA0, int pA1, int pB0, int pB1,
 					int pC0, int pC1) {
-				System.out.println("["+pA0+","+pA1+","+pB0+","+pB1+","+pC0+","+pC1+"]");
+				//System.out.println("["+pA0+","+pA1+","+pB0+","+pB1+","+pC0+","+pC1+"]");
+				//System.out.println("lFloatBank.add(new float[]{"+pA0+","+pA1+", 0f, 0f, 0f, 0f, 0f, 1f});");
+				//System.out.println("lFloatBank.add(new float[]{"+pB0+","+pB1+", 0f, 0f, 0f, 0f, 0f, 1f});");
+				//System.out.println("lFloatBank.add(new float[]{"+pC0+","+pC1+", 0f, 0f, 0f, 0f, 0f, 1f});");
 			}
-			
 		};
 		
 		/* Process the TestData. */
-		Earcut.earcut(lLetterW, true, lCallback);	
+		int NUM_TESTS = 100000;
+		long t = System.nanoTime();
+		//for(int i = 0; i < NUM_TESTS; i++) {
+			Earcut.earcut(lLetterW, true, lCallback);
+		//}	
+		//System.out.println(System.nanoTime() - t);
+		Earcut.earcut(lLetterO, true, lCallback);	
+		Earcut.earcut(lExample, true, lCallback);	
+		Earcut.earcut(lLetter8, true, lCallback);	
 		
 	}
 	
