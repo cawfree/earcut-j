@@ -3,15 +3,15 @@ package com.earcutj;
 final class Node {
 	
 	/* Member Variables. */
-	private final int  mX;
-	private final int  mY;
-	private       int  mZOrder;
-	private       Node mPreviousNode;
-	private       Node mNextNode;
-	private       Node mPreviousZNode;
-	private       Node mNextZNode;
+	private final float mX;
+	private final float mY;
+	private       int   mZOrder;
+	private       Node  mPreviousNode;
+	private       Node  mNextNode;
+	private       Node  mPreviousZNode;
+	private       Node  mNextZNode;
 	
-	protected Node(final int pX, final int pY) {
+	protected Node(final float pX, final float pY) {
 		/* Initialize Member Variables. */
 		this.mX = pX;
 		this.mY = pY;
@@ -22,11 +22,11 @@ final class Node {
 		this.mNextZNode     = null;
 	}
 	
-	protected final int getX() {
+	protected final float getX() {
 		return this.mX;
 	}
 	
-	protected final int getY() {
+	protected final float getY() {
 		return this.mY;
 	}
 	

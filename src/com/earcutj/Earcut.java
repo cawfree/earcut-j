@@ -27,23 +27,24 @@ public final class Earcut {
 	}
 	
 	/** Produces an array of vertices representing the triangulated result set of the Points array. **/
-	public static final void earcut(final int[][][] pPoints, final boolean pIsClockwise, final IEarcutListener pEarcutListener) {
+	public static final List<float[][]> earcut(final float[][][] pPoints, final boolean pIsClockwise) {
 		/* Attempt to establish a doubly-linked list of the provided Points set, and then filter instances of intersections. */
 		Node lOuterNode = Earcut.onFilterPoints(Earcut.onCreateDoublyLinkedList(pPoints[0], pIsClockwise), null, false);
 		/* If an outer node hasn't been detected, the input array is malformed. */
 		if(lOuterNode == null) {
 			throw new EarcutException("Could not process shape!");
 		}
-		
+		/* Define the TriangleList. */
+		final List<float[][]> lTriangleList = new ArrayList<float[][]>();
 		/* Declare method dependencies. */
 		Node lNode            = null;
-		int  lMinimumX        = 0;
-		int  lMinimumY        = 0;
-		int  lMaximumX        = 0;
-		int  lMaximumY        = 0;
-		int  lCurrentX        = 0; 
-		int  lCurrentY        = 0;
-		int  lBoundingBoxSize = 0; 
+		float  lMinimumX        = 0;
+		float  lMinimumY        = 0;
+		float  lMaximumX        = 0;
+		float  lMaximumY        = 0;
+		float  lCurrentX        = 0; 
+		float  lCurrentY        = 0;
+		float  lBoundingBoxSize = 0; 
         int  lThreshold       = Earcut.DEFAULT_THRESHOLD_SIMPLICITY;
         
         /* Determine whether the specified array of points crosses the simplicity threshold. */
@@ -92,11 +93,11 @@ public final class Earcut {
 	    	Earcut.onZIndexCurve(lOuterNode, lMinimumX, lMinimumY, lBoundingBoxSize);
 	    }
         /* Calculate an Earcut operation on the generated LinkedList. */
-        Earcut.onEarcutLinkedList(lOuterNode, pEarcutListener, lMinimumX, lMinimumY, lBoundingBoxSize, EEarcutState.INIT, lThreshold < 0);
+        return Earcut.onEarcutLinkedList(lOuterNode, lTriangleList, lMinimumX, lMinimumY, lBoundingBoxSize, EEarcutState.INIT, lThreshold < 0);
 	}
 	
 	/** Links every hole into the outer loop, producing a single-ring polygon without holes. **/
-	private static final Node onEliminateHoles(final int[][][] pPoints, Node lOuterNode, final boolean pIsZIndexed) {
+	private static final Node onEliminateHoles(final float[][][] pPoints, Node lOuterNode, final boolean pIsZIndexed) {
 		/* Define a list to hole a reference to each filtered hole list. */
 		final List<Node> lHoleQueue = new ArrayList<Node>();
 		/* Iterate through each array of hole vertices. */
@@ -139,13 +140,13 @@ public final class Earcut {
 	private static final Node onEberlyFetchHoldBridge(final Node pHoleNode, final Node pOuterNode) {
 	    Node  lNode        = pOuterNode;
 	    Node  lLeadingNode = null;
-	    final int px   = pHoleNode.getX();
-	    final int py   = pHoleNode.getY();
-	          int qMax = Integer.MIN_VALUE;
+	    final float px   = pHoleNode.getX();
+	    final float py   = pHoleNode.getY();
+	    float qMax = Float.MIN_VALUE;
 	    
 	    do {
 	        if (py <= lNode.getY() && py >= lNode.getNextNode().getY()) {
-	            int qx = lNode.getX() + (py - lNode.getY()) * (lNode.getNextNode().getX() - lNode.getX()) / (lNode.getNextNode().getY() - lNode.getY());
+	        	float qx = lNode.getX() + (py - lNode.getY()) * (lNode.getNextNode().getX() - lNode.getX()) / (lNode.getNextNode().getY() - lNode.getY());
 	            if (qx <= px && qx > qMax) {
 	                qMax = qx;
 	                lLeadingNode = lNode.getX() < lNode.getNextNode().getX() ? lNode : lNode.getNextNode();
@@ -165,7 +166,7 @@ public final class Earcut {
 	    // otherwise choose the point of the minimum angle with the ray as connection point
 
 	    /* Search for points strictly inside the triangle of the hole point, segment intersection and endpoint. If no points are found, the connection is valid. otherwise choose the point which possesses a minimum-angle with the ray as the connection point. */
-	    int bx = lLeadingNode.getX(),
+	    float bx = lLeadingNode.getX(),
 	        by = lLeadingNode.getY(),
 	        pbd = px * by - py * bx,
 	        pcd = px * py - py * qMax,
@@ -176,7 +177,7 @@ public final class Earcut {
 	        A = pbd - pcd - (qMax * by - py * bx),
 	        sign = A <= 0 ? -1 : 1;
 	        Node stop = lLeadingNode;
-	        int tanMin = Integer.MAX_VALUE,
+	        float tanMin = Float.MAX_VALUE,
 	        mx, my, amx, s, t, tan;
 
 	    lNode = lLeadingNode.getNextNode();
@@ -227,10 +228,9 @@ public final class Earcut {
 	}
 	
 	/** Main ear slicing loop which triangulates the vertices of a polygon, provided as a doubly-linked list. **/
-	private static final void onEarcutLinkedList(Node lCurrentEar, final IEarcutListener pEarcutListener, final int pMinimumX, final int pMinimumY, final int pSize, final EEarcutState pEarcutState, final boolean pIsZIndexed) {
+	private static final List<float[][]> onEarcutLinkedList(Node lCurrentEar, final List<float[][]> pTriangleList, final float pMinimumX, final float pMinimumY, final float pSize, final EEarcutState pEarcutState, final boolean pIsZIndexed) {
 	    if (lCurrentEar == null) {
-	    	System.out.println("null ear");
-	    	return;
+	    	return pTriangleList;
 	    }
 
 	    Node lStop         = lCurrentEar;
@@ -245,8 +245,8 @@ public final class Earcut {
 	        /* Determine whether the current triangle must be cut off. */
 	        if(Earcut.isEar(lCurrentEar, pMinimumX, pMinimumY, pSize, pIsZIndexed)) {
 	        	/* Return the triangulated data back to the Callback. */
-	        	pEarcutListener.onTriangleVertex(lPreviousNode.getX(), lPreviousNode.getY(), lCurrentEar.getX(), lCurrentEar.getY(), lNextNode.getX(), lNextNode.getY());
-	            /* Remove the ear node. */
+	        	pTriangleList.add(new float[][]{ new float[]{ lPreviousNode.getX(), lPreviousNode.getY() }, new float[]{ lCurrentEar.getX(), lCurrentEar.getY() }, new float[]{ lNextNode.getX(), lNextNode.getY() } });
+	        	 /* Remove the ear node. */
 	            lNextNode.setPreviousNode(lPreviousNode);
 	            lPreviousNode.setNextNode(lNextNode);
 	            
@@ -267,28 +267,30 @@ public final class Earcut {
 	            switch(pEarcutState) {
 		            case INIT :
 			            // try filtering points and slicing again
-		            	Earcut.onEarcutLinkedList(Earcut.onFilterPoints(lCurrentEar, null, pIsZIndexed), pEarcutListener, pMinimumX, pMinimumY, pSize, EEarcutState.CURE, pIsZIndexed);
+		            	Earcut.onEarcutLinkedList(Earcut.onFilterPoints(lCurrentEar, null, pIsZIndexed), pTriangleList, pMinimumX, pMinimumY, pSize, EEarcutState.CURE, pIsZIndexed);
 		            break;
 		            case CURE :
 			            // if this didn't work, try curing all small self-intersections locally
-		                lCurrentEar = Earcut.onCureLocalIntersections(lCurrentEar, pEarcutListener);
-		                Earcut.onEarcutLinkedList(lCurrentEar, pEarcutListener, pMinimumX, pMinimumY, pSize, EEarcutState.SPLIT, pIsZIndexed);
+		                lCurrentEar = Earcut.onCureLocalIntersections(lCurrentEar, pTriangleList);
+		                Earcut.onEarcutLinkedList(lCurrentEar, pTriangleList, pMinimumX, pMinimumY, pSize, EEarcutState.SPLIT, pIsZIndexed);
 		            	
 		            break;
 		            case SPLIT :
 		            	// as a last resort, try splitting the remaining polygon into two
-		            	Earcut.onSplitEarcut(lCurrentEar, pEarcutListener, pMinimumX, pMinimumY, pSize, pIsZIndexed);
+		            	Earcut.onSplitEarcut(lCurrentEar, pTriangleList, pMinimumX, pMinimumY, pSize, pIsZIndexed);
 		            break;
 		        }
 	            break;
 	        }
 	    }
+	    /* Return the calculated triangle vertices. */
+	    return pTriangleList;
 	}
 	
 	/** Determines whether a polygon node forms a valid ear with adjacent nodes. **/
-	private static final boolean isEar(final Node pEar, final int pMinimumX, final int pMinimumY, final int pSize, final boolean pIsZIndexed) {
+	private static final boolean isEar(final Node pEar, final float pMinimumX, final float pMinimumY, final float pSize, final boolean pIsZIndexed) {
 
-        int ax = pEar.getPreviousNode().getX(), bx = pEar.getX(), cx = pEar.getNextNode().getX(),
+		float ax = pEar.getPreviousNode().getX(), bx = pEar.getX(), cx = pEar.getNextNode().getX(),
         ay = pEar.getPreviousNode().getY(), by = pEar.getY(), cy = pEar.getNextNode().getY(),
 
         abd = ax * by - ay * bx,
@@ -301,19 +303,19 @@ public final class Earcut {
 	    // now make sure we don't have other points inside the potential ear;
 	    // the code below is a bit verbose and repetitive but this is done for performance
 
-	    int cay = cy - ay,
+	    float cay = cy - ay,
 	        acx = ax - cx,
 	        aby = ay - by,
 	        bax = bx - ax;
 	    //int[] p;
-	    int px, py, s, t, k;
+	    float px, py, s, t, k;
 	    Node node = null;
 
 	    // if we use z-order curve hashing, iterate through the curve
 	    if (pIsZIndexed) {
 
 	        // triangle bbox; min & max are calculated like this for speed
-	        int minTX = ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx),
+	    	float minTX = ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx),
 	            minTY = ay < by ? (ay < cy ? ay : cy) : (by < cy ? by : cy),
 	            maxTX = ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx),
 	            maxTY = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy),
@@ -343,11 +345,11 @@ public final class Earcut {
 	                    
 	                    ;
 	                    
-	                    int term1 = (s == 0 ? s : t);
-	                    int term2 = (s == 0 ? s : k);
-	                    int term3 = (t == 0 ? t : k);
+	                    float term1 = (s == 0 ? s : t);
+	                    float term2 = (s == 0 ? s : k);
+	                    float term3 = (t == 0 ? t : k);
 	                    
-	                    int calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3);
+	                    float calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3); /** TODO: Optimize. **/
 	                    
 	                    if ((k >= 0) && (calculation != 0)) return false;
 	                }
@@ -372,11 +374,11 @@ public final class Earcut {
 	                if (t >= 0) {
 	                    k = A - s - t;
 	                    
-	                    int term1 = (s == 0 ? s : t);
-	                    int term2 = (s == 0 ? s : k);
-	                    int term3 = (t == 0 ? t : k);
+	                    float term1 = (s == 0 ? s : t);
+	                    float term2 = (s == 0 ? s : k);
+	                    float term3 = (t == 0 ? t : k);
 	                    
-	                    int calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3);
+	                    float calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3);
 	                    
 	                    if ((k >= 0) && (calculation != 0)) return false;
 	                }
@@ -400,11 +402,11 @@ public final class Earcut {
 	                t = aby * px + bax * py + abd;
 	                if (t >= 0) {
 	                    k = A - s - t;
-	                    int term1 = (s == 0 ? s : t);
-	                    int term2 = (s == 0 ? s : k);
-	                    int term3 = (t == 0 ? t : k);
+	                    float term1 = (s == 0 ? s : t);
+	                    float term2 = (s == 0 ? s : k);
+	                    float term3 = (t == 0 ? t : k);
 	                    
-	                    int calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3);
+	                    float calculation = (term1 != 0 ? term1 : term2 != 0? term2 : term3);
 	                    
 	                    if ((k >= 0) && (calculation != 0)) return false;
 	                }
@@ -415,7 +417,7 @@ public final class Earcut {
 	}
 	
 	/** Iterates through all polygon nodes and cures small local self-intersections. **/
-	private static final Node onCureLocalIntersections(Node pStartNode, final IEarcutListener pEarcutListener) {
+	private static final Node onCureLocalIntersections(Node pStartNode, final List<float[][]> pTriangleList) {
 	    Node lNode = pStartNode;
 	    do {
 	        Node a = lNode.getPreviousNode(),
@@ -424,8 +426,8 @@ public final class Earcut {
 	        // a self-intersection where edge (v[i-1],v[i]) intersects (v[i+1],v[i+2])
 	        if (Earcut.isIntersecting(a.getX(), a.getY(), lNode.getX(), lNode.getY(), lNode.getNextNode().getX(), lNode.getNextNode().getY(), b.getX(), b.getY()) && Earcut.isLocallyInside(a, b) && Earcut.isLocallyInside(b, a)) {
 	            /* Return the triangulated vertices to the callback. */
-	        	pEarcutListener.onTriangleVertex(a.getX(), a.getY(), lNode.getX(), lNode.getY(), b.getX(), b.getY());
-
+	        	pTriangleList.add(new float[][]{ new float[]{ a.getX(), a.getY() }, new float[]{ lNode.getX(), lNode.getY() }, new float[]{ b.getX(), b.getY() } });
+	        	
 	            // remove two nodes involved
 	            a.setNextNode(b);
 	            b.setPreviousNode(a);
@@ -454,7 +456,7 @@ public final class Earcut {
 	}
 	
 	/** Tries to split a polygon and triangulate each side independently. **/
-	private static final void onSplitEarcut(final Node pStart, final IEarcutListener pCallback, final int pMinimumX, final int pMinimumY, final int pSize, final boolean pIsZIndexed) {
+	private static final void onSplitEarcut(final Node pStart, final List<float[][]> pTriangleList, final float pMinimumX, final float pMinimumY, final float pSize, final boolean pIsZIndexed) {
 	   /* Search for a valid diagonal that divides the polygon into two. */
 		Node lSearchNode = pStart;
 	    do {
@@ -467,8 +469,8 @@ public final class Earcut {
 	                lSearchNode = Earcut.onFilterPoints(lSearchNode, lSearchNode.getNextNode(), pIsZIndexed);
 	                lSplitNode  = Earcut.onFilterPoints(lSplitNode, lSplitNode.getNextNode(), pIsZIndexed);
 	                /* Attempt to earcut both of the resulting polygons. */
-	                Earcut.onEarcutLinkedList(lSearchNode, pCallback, pMinimumX, pMinimumY, pSize, EEarcutState.INIT, pIsZIndexed);
-	                Earcut.onEarcutLinkedList(lSplitNode,  pCallback, pMinimumX, pMinimumY, pSize, EEarcutState.INIT, pIsZIndexed);
+	                Earcut.onEarcutLinkedList(lSearchNode, pTriangleList, pMinimumX, pMinimumY, pSize, EEarcutState.INIT, pIsZIndexed);
+	                Earcut.onEarcutLinkedList(lSplitNode,  pTriangleList, pMinimumX, pMinimumY, pSize, EEarcutState.INIT, pIsZIndexed);
 	                /* Finish the iterative search. */
 	                return;
 	            }
@@ -508,11 +510,11 @@ public final class Earcut {
 	}
 	
 	/** Determines whether the middle point of a polygon diagonal is contained within the polygon. **/
-	private static final boolean onMiddleInsert(final Node pPolygonStart, final int pX0, final int pY0, final int pX1, final int pY1) {
+	private static final boolean onMiddleInsert(final Node pPolygonStart, final float pX0, final float pY0, final float pX1, final float pY1) {
 	    Node    lNode     = pPolygonStart;
 	    boolean lIsInside = false;
-	    int lDx = (pX0 + pX1) / 2;
-	    int lDy = (pY0 + pY1) / 2;
+	    float lDx = (pX0 + pX1) / 2.0f;
+	    float lDy = (pY0 + pY1) / 2.0f;
 	    do {
 	        if (((lNode.getY() > lDy) != (lNode.getNextNode().getY() > lDy)) && (lDx < (lNode.getNextNode().getX() - lNode.getX()) * (lDy - lNode.getY()) / (lNode.getNextNode().getY() - lNode.getY()) + lNode.getX())) {
 	        	lIsInside = !lIsInside;
@@ -523,7 +525,7 @@ public final class Earcut {
 	}
 	
 	/** Determines if the diagonal of a polygon is intersecting with any polygon elements. **/
-	private static final boolean isIntersectingPolygon(final Node pStartNode, final int pX0, final int pY0, final int pX1, final int pY1) {
+	private static final boolean isIntersectingPolygon(final Node pStartNode, final float pX0, final float pY0, final float pX1, final float pY1) {
 	    Node lNode = pStartNode;
 	    do {
 	        if(lNode.getX() != pX0 && lNode.getY() != pY0 && lNode.getNextNode().getX() != pX0 && lNode.getNextNode().getY() != pY0 && lNode.getX() != pX1 && lNode.getY() != pY1 && lNode.getNextNode().getX() != pX1 && lNode.getNextNode().getY() != pY1 && Earcut.isIntersecting(lNode.getX(), lNode.getY(), lNode.getNextNode().getX(), lNode.getNextNode().getY(), pX0, pY0, pX1, pY1)) {
@@ -536,12 +538,12 @@ public final class Earcut {
 	}
 	
 	/** Determines whether two segments intersect. **/
-	private static final boolean isIntersecting(final int pX0, final int pY0, final int pX1, final int pY1, final int pX2, final int pY2, final int pX3, final int pY3) {
+	private static final boolean isIntersecting(final float pX0, final float pY0, final float pX1, final float pY1, final float pX2, final float pY2, final float pX3, final float pY3) {
 	    return Earcut.onCalculateWindingOrder(pX0, pY0, pX1, pY1, pX2, pY2) != Earcut.onCalculateWindingOrder(pX0, pY0, pX1, pY1, pX3, pY3) && Earcut.onCalculateWindingOrder(pX2, pY2, pX3, pY3, pX0, pY0) != Earcut.onCalculateWindingOrder(pX2, pY2, pX3, pY3, pX1, pY1);
 	}
 	
 	/** Interlinks polygon nodes in Z-Order. **/
-	private static final void onZIndexCurve(Node pStartNode, final int pMinimumX, final int pMinimumY, final int pSize) {
+	private static final void onZIndexCurve(Node pStartNode, final float pMinimumX, final float pMinimumY, final float pSize) {
 	    Node lNode = pStartNode;
 	    
 	    do {
@@ -627,27 +629,27 @@ public final class Earcut {
 	}
 	
 	/** Calculates the Z-Order of a given point given the vertex co-ordinates and size of the bounding box. **/
-	private static final int onCalculateZOrder(int pX, int pY, final int pMinimumX, final int pMinimumY, final int pSize) {
+	private static final int onCalculateZOrder(final float pX, final float pY, final float pMinimumX, final float pMinimumY, final float pSize) {
 		/* Transform the co-ordinate set onto a (0 -> DEFAULT_COORDINATE_RANGE) Integer range. */
-	    pX = Earcut.DEFAULT_COORDINATE_RANGE * (pX - pMinimumX) / pSize;
-	    pX = (pX | (pX << 8)) & 0x00FF00FF;
-	    pX = (pX | (pX << 4)) & 0x0F0F0F0F;
-	    pX = (pX | (pX << 2)) & 0x33333333;
-	    pX = (pX | (pX << 1)) & 0x55555555;
-	    pY = Earcut.DEFAULT_COORDINATE_RANGE * (pY - pMinimumY) / pSize;
-	    pY = (pY | (pY << 8)) & 0x00FF00FF;
-	    pY = (pY | (pY << 4)) & 0x0F0F0F0F;
-	    pY = (pY | (pY << 2)) & 0x33333333;
-	    pY = (pY | (pY << 1)) & 0x55555555;
+	    int lX = (int)(Earcut.DEFAULT_COORDINATE_RANGE * (pX - pMinimumX) / pSize);
+	    lX = (lX | (lX << 8)) & 0x00FF00FF;
+	    lX = (lX | (lX << 4)) & 0x0F0F0F0F;
+	    lX = (lX | (lX << 2)) & 0x33333333;
+	    lX = (lX | (lX << 1)) & 0x55555555;
+	    int lY = (int)(Earcut.DEFAULT_COORDINATE_RANGE * (pY - pMinimumY) / pSize);
+	    lY = (lY | (lY << 8)) & 0x00FF00FF;
+	    lY = (lY | (lY << 4)) & 0x0F0F0F0F;
+	    lY = (lY | (lY << 2)) & 0x33333333;
+	    lY = (lY | (lY << 1)) & 0x55555555;
 	    /* Returned the scaled co-ordinates. */
-	    return pX | (pY << 1);
+	    return lX | (lY << 1);
 	}
 	
 	/** Creates a circular doubly linked list using polygon points. The order is governed by the specified winding order. **/
-	private static final Node onCreateDoublyLinkedList(final int[][] pPoints, final boolean pIsClockwise) {
+	private static final Node onCreateDoublyLinkedList(final float[][] pPoints, final boolean pIsClockwise) {
 		int lWindingSum = 0;
-		int[] p1;
-		int[] p2;
+		float[] p1;
+		float[] p2;
 		Node lLastNode = null;
 		
 		/* Calculate the original order of the Polygon ring. */
@@ -710,7 +712,7 @@ public final class Earcut {
 	}
 	
 	/** Creates a node and optionally links it with a previous node in a circular doubly-linked list. **/
-	private static final Node onInsertNode(final int pX, final int pY, final Node pLastNode) {
+	private static final Node onInsertNode(final float pX, final float pY, final Node pLastNode) {
 	    final Node lNode = new Node(pX, pY);
 	    if(pLastNode == null) {
 	        lNode.setPreviousNode(lNode);
@@ -726,14 +728,14 @@ public final class Earcut {
 	}
 	
 	/** Determines if two point vertices are equal. **/
-	private static final boolean isVertexEquals(final int pX0, final int pY0, final int pX1, final int pY1) {
+	private static final boolean isVertexEquals(final float pX0, final float pY0, final float pX1, final float pY1) {
 	    return pX0 == pX1 && pY0 == pY1;
 	}
 	
 	/** Calculates the WindingOrder for a set of vertices. **/
-	private static final EWindingOrder onCalculateWindingOrder(final int pX0, final int pY0, final int pX1, final int pY1, final int pX2, final int pY2) {
-	    final int lCross = (pY1 - pY0) * (pX2 - pX1) - (pX1 - pX0) * (pY2 - pY1);
-	    return    lCross > 0 ? EWindingOrder.CW : lCross < 0 ? EWindingOrder.CCW : EWindingOrder.COLINEAR;
+	private static final EWindingOrder onCalculateWindingOrder(final float pX0, final float pY0, final float pX1, final float pY1, final float pX2, final float pY2) {
+	    final float lCross = (pY1 - pY0) * (pX2 - pX1) - (pX1 - pX0) * (pY2 - pY1);
+	    return      lCross > 0 ? EWindingOrder.CW : lCross < 0 ? EWindingOrder.CCW : EWindingOrder.COLINEAR;
 	}
 	
 	/* Prevent instantiation of this class. */
