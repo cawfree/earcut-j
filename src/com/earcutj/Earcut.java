@@ -126,7 +126,7 @@ public final class Earcut {
 	/** Finds a bridge between vertices that connects a hole with an outer ring, and links it. **/
 	private static final void onEliminateHole(final Node pHoleNode, Node pOuterNode, final boolean pIsZIndexed) {
 		/* Attempt to find a logical bridge between the HoleNode and OuterNode. */
-	    pOuterNode = Earcut.onEberlyFetchHoldBridge(pHoleNode, pOuterNode);
+	    pOuterNode = Earcut.onEberlyFetchHoleBridge(pHoleNode, pOuterNode);
 	    /* Determine whether a hole bridge could be fetched. */
 	    if(pOuterNode != null) {
 	    	/* Split the resulting polygon. */
@@ -137,76 +137,67 @@ public final class Earcut {
 	}
 	
 	/** David Eberly's algorithm for finding a bridge between a hole and outer polygon. **/
-	private static final Node onEberlyFetchHoldBridge(final Node pHoleNode, final Node pOuterNode) {
-	    Node  lNode        = pOuterNode;
-	    Node  lLeadingNode = null;
-	    final float px   = pHoleNode.getX();
-	    final float py   = pHoleNode.getY();
-	    float qMax = Float.MIN_VALUE;
-	    
-	    do {
-	        if (py <= lNode.getY() && py >= lNode.getNextNode().getY()) {
-	        	float qx = lNode.getX() + (py - lNode.getY()) * (lNode.getNextNode().getX() - lNode.getX()) / (lNode.getNextNode().getY() - lNode.getY());
-	            if (qx <= px && qx > qMax) {
-	                qMax = qx;
-	                lLeadingNode = lNode.getX() < lNode.getNextNode().getX() ? lNode : lNode.getNextNode();
-	            }
-	        }
-	        /* Move along the chain. */
-	        lNode = lNode.getNextNode();
-	        
-	    } while (lNode != pOuterNode);
-
-	    if(lLeadingNode == null) {
-	    	return null;
-	    }
-
-	    // look for points strictly inside the triangle of hole point, segment intersection and endpoint;
-	    // if there are no points found, we have a valid connection;
-	    // otherwise choose the point of the minimum angle with the ray as connection point
-
-	    /* Search for points strictly inside the triangle of the hole point, segment intersection and endpoint. If no points are found, the connection is valid. otherwise choose the point which possesses a minimum-angle with the ray as the connection point. */
-	    float bx = lLeadingNode.getX(),
-	        by = lLeadingNode.getY(),
-	        pbd = px * by - py * bx,
-	        pcd = px * py - py * qMax,
-	        cpy = py - py,
-	        pcx = px - qMax,
-	        pby = py - by,
-	        bpx = bx - px,
-	        A = pbd - pcd - (qMax * by - py * bx),
-	        sign = A <= 0 ? -1 : 1;
-	        Node stop = lLeadingNode;
-	        float tanMin = Float.MAX_VALUE,
-	        mx, my, amx, s, t, tan;
-
-	    lNode = lLeadingNode.getNextNode();
-
-	    while (lNode != stop) {
-
-	        mx = lNode.getX();
-	        my = lNode.getY();
-	        amx = px - mx;
-
-	        if (amx >= 0 && mx >= bx) {
-	            s = (cpy * mx + pcx * my - pcd) * sign;
-	            if (s >= 0) {
-	                t = (pby * mx + bpx * my + pbd) * sign;
-
-	                if (t >= 0 && A * sign - s - t >= 0) {
-	                    tan = Math.abs(py - my) / amx; // tangential
-	                    if (tan < tanMin && isLocallyInside(lNode, pHoleNode)) {
-	                        lLeadingNode = lNode;
-	                        tanMin = tan;
-	                    }
-	                }
-	            }
-	        }
-
-	        lNode = lNode.getNextNode();
-	    }
-
-	    return lLeadingNode;
+	private static final Node onEberlyFetchHoleBridge(final Node pHoleNode, final Node pOuterNode) { /** TODO: Update earcut accordingly. **/
+		Node node = pOuterNode;
+		Node		p = pHoleNode;
+		float px = p.getX();
+		float py = p.getY();
+		float qMax = Float.NEGATIVE_INFINITY;
+		Node mNode = null;
+		Node a, b;
+		// find a segment intersected by a ray from the hole's leftmost point to the left;
+		// segment's endpoint with lesser x will be potential connection point
+		do {
+			a = node;
+			b = node.getNextNode();
+			if (py <= a.getY() && py >= b.getY()) {
+				float qx = a.getX() + (py - a.getY()) * (b.getX() - a.getX()) / (b.getY() - a.getY());
+				if (qx <= px && qx > qMax) {
+					qMax = qx;
+					mNode = a.getX() < b.getX() ? node : node.getNextNode();
+				}
+			}
+			node = node.getNextNode();
+		} while (node != pOuterNode);
+		
+		if (mNode == null) return null;
+		// look for points strictly inside the triangle of hole point, segment intersection and endpoint;
+		// if there are no points found, we have a valid connection;
+		// otherwise choose the point of the minimum angle with the ray as connection point
+		float bx = mNode.getX(),
+		by = mNode.getY(),
+		pbd = px * by - py * bx,
+		pcd = px * py - py * qMax,
+		cpy = py - py,
+		pcx = px - qMax,
+		pby = py - by,
+		bpx = bx - px,
+		A = pbd - pcd - (qMax * by - py * bx),
+		sign = A <= 0 ? -1 : 1;
+		Node stop = mNode;
+		float tanMin = Float.POSITIVE_INFINITY,
+		mx, my, amx, s, t, tan;
+		node = mNode.getNextNode();
+		while (node != stop) {
+			mx = node.getX();
+			my = node.getY();
+			amx = px - mx;
+			if (amx >= 0 && mx >= bx) {
+				s = (cpy * mx + pcx * my - pcd) * sign;
+				if (s >= 0) {
+					t = (pby * mx + bpx * my + pbd) * sign;
+					if (t >= 0 && A * sign - s - t >= 0) {
+						tan = Math.abs(py - my) / amx; // tangential
+						if (tan < tanMin && Earcut.isLocallyInside(node, pHoleNode)) {
+							mNode = node;
+							tanMin = tan;
+						}
+					}
+				}
+			}
+			node = node.getNextNode();
+		}
+		return mNode;
 	}
 	
 	/** Finds the left-most hole of a polygon ring. **/
