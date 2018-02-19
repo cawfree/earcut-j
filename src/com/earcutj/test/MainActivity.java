@@ -359,16 +359,20 @@ public final class MainActivity {
 		dumpTriangles(lTriangleList);
 
 		// Failing example for winding fix
-		final float[][][] minimalFailingExample = new float[][][] {
+		final float[][][] minimalWindingFailingExample = new float[][][] {
 			new float[][] {
 				new float[]{-31.528161308724968f, -113.92911761454135f},
 				new float[]{-31.55738451637037f, -113.75652283714695f},
 				new float[]{-31.24371293623057f, -113.16385020118966f}
 			}
 		};
-		List<float[][]> minimalTriangles = Earcut.earcut(minimalFailingExample, true);
-		System.out.println(trianglesArea(minimalTriangles));
-		System.out.println(triangleArea(minimalFailingExample[0]));
+		List<float[][]> minimalWindingTriangles = Earcut.earcut(minimalWindingFailingExample, true);
+		if (Math.abs(trianglesArea(minimalWindingTriangles) - triangleArea(minimalWindingFailingExample[0])) < 1e-9) {
+			System.out.println("minimalWindingFailingExample failed");
+			System.out.println(trianglesArea(minimalWindingTriangles));
+			System.out.println(triangleArea(minimalWindingFailingExample[0]));
+			System.exit(1);
+		}
 	}
 
 }
