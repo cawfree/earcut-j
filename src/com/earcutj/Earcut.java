@@ -638,7 +638,7 @@ public final class Earcut {
 	
 	/** Creates a circular doubly linked list using polygon points. The order is governed by the specified winding order. **/
 	private static final Node onCreateDoublyLinkedList(final float[][] pPoints, final boolean pIsClockwise) {
-		int lWindingSum = 0;
+		float lWindingSum = 0;
 		float[] p1;
 		float[] p2;
 		Node lLastNode = null;

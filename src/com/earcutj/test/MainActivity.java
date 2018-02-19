@@ -4,9 +4,34 @@ import java.util.List;
 
 import com.earcutj.Earcut;
 
-public final class MainActivity {	
+public final class MainActivity {
 
-	public static final void main(final String[] pArgs) {		
+	private static void dumpTriangle(float[][] triangle) {
+		System.out.println("[ " + triangle[0][0] + "," + triangle[0][1] + "] [ " + triangle[1][0] + "," + triangle[1][1] + "] [ " + triangle[2][0] + "," + triangle[2][1] + "] ");
+	}
+
+	private static void dumpTriangles(List<float[][]> lTriangleList) {
+		for (final float[][] lCurrentTriangle : lTriangleList) {
+			dumpTriangle(lCurrentTriangle);
+		}
+	}
+
+	private static float triangleArea(float[][] triangle) {
+		final float[] a = triangle[0];
+		final float[] b = triangle[1];
+		final float[] c = triangle[2];
+		return Math.abs((a[0] - c[0]) * (b[1] - a[1]) - (a[0] - b[0]) * (c[1] - a[1])) / 2;
+	}
+
+	private static double trianglesArea(List<float[][]> lTriangleList) {
+		double area = 0.0;
+		for (final float[][] lCurrentTriangle : lTriangleList) {
+			area += triangleArea(lCurrentTriangle);
+		}
+		return area;
+	}
+
+	public static final void main(final String[] pArgs) {
 		
 		/* Input should be an array of rings, where the first is outer ring and others are holes; each ring is an array of pofloats, where each pofloat is of the [x, y] form. */
 		final float[][][] lExample = new float[][][]{new float[][]{new float[]{10, 0}, new float[]{0, 50}, new float[]{60, 60}, new float[]{70, 10}}};
@@ -329,13 +354,25 @@ public final class MainActivity {
 		List<float[][]> lTriangleList = Earcut.earcut(lLetterW, true);
 		lTriangleList = Earcut.earcut(lLetterO, true);	
 		lTriangleList = Earcut.earcut(lExample, true);	
-		lTriangleList = Earcut.earcut(lLetter8, true);	
-		
-		for(int i = 0; i < lTriangleList.size(); i++) {
-			final float[][] lCurrentTriangle = lTriangleList.get(i);
-			System.out.println("[ "+lCurrentTriangle[0][0]+","+lCurrentTriangle[0][1]+"] "+"[ "+lCurrentTriangle[1][0]+","+lCurrentTriangle[1][1]+"] "+"[ "+lCurrentTriangle[2][0]+","+lCurrentTriangle[2][1]+"] ");
+		lTriangleList = Earcut.earcut(lLetter8, true);
+
+		dumpTriangles(lTriangleList);
+
+		// Failing example for winding fix
+		final float[][][] minimalWindingFailingExample = new float[][][] {
+			new float[][] {
+				new float[]{-31.528161308724968f, -113.92911761454135f},
+				new float[]{-31.55738451637037f, -113.75652283714695f},
+				new float[]{-31.24371293623057f, -113.16385020118966f}
+			}
+		};
+		List<float[][]> minimalWindingTriangles = Earcut.earcut(minimalWindingFailingExample, true);
+		if (Math.abs(trianglesArea(minimalWindingTriangles) - triangleArea(minimalWindingFailingExample[0])) < 1e-9) {
+			System.out.println("minimalWindingFailingExample failed");
+			System.out.println(trianglesArea(minimalWindingTriangles));
+			System.out.println(triangleArea(minimalWindingFailingExample[0]));
+			System.exit(1);
 		}
-		
 	}
-	
+
 }
